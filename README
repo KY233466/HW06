@@ -1,0 +1,409 @@
+/*
+* READ ME
+*/
+
+/**********************************************************************
+* HW4: UM
+* CS 40 - Machine Struc and Programming
+* README
+* Name: Katie Yang (zyang11)  &  Pamela Melgar (pmelga01)
+* Date: November 24, 2021
+**********************************************************************/
+
+_____________
+Compile/run: |
+_____________|
+     - Compile um using
+            make 
+            
+     - run executable with
+            ./um [instruction_input] < [stdin_file] > [stdout_file]
+            
+     - Ensure the directory where the execution occurs has a um.c, 
+        execution.c, read_file.c, memory_manager.c, register_manager.c, 
+        instruction_retrieval.c, 
+
+_________________
+Program Purpose: |
+_________________|
+
+The purpose of this program is to emulate machine specifications through 
+software. We build a virtual Univeral Machine (UM) which contains 
+8 general-purpose registers each holding a 32-bit word,
+an address space of memory segments where each segment contains a sequence 
+of word, 
+an I/0 device that can display ASCII characters by performing input and 
+output of unsigned 8-bit characters, 
+and a 32-bit program counter
+
+This program also allows us to demonstrate our ability to design, document, 
+and implement a program structure that is as modular as possible. 
+
+__________________
+Acknowledgements: |
+__________________|
+
+THANK YOU to ALL the 40 TAs for their help and patience!!
+Thank you Lianna for helping us find our typo and Gustavo for 
+answering our questions the day before Thanksgiving!!!
+
+
+______________________________
+What Works and What does not: |
+______________________________|
+
+We believe everything is working as expected. Our program was able to meet 
+both of the benchmarks with sandmark.umz as well as midmark.um. The 
+only test we had trouble with was the advent test in terms of 
+figuring how to run the program with enough valid input for long enough 
+(reach a logical end to the "game").
+
+
+_____________________________________
+Significant Departures from Design:  |
+_____________________________________|
+
+We did not have any significant departures from our original design. 
+We did change the order in which we implemented as we began to realize 
+that some instruction testing depended on things like the memory module 
+already being implemented. Otherwise, we decided NOT to create 
+separate modules for instructions that only use the registers vs. 
+modules that only use the segments so as not to overkill the 
+separation and secret keeping.
+
+
+______________________
+Files/ Architecture:  |
+______________________|
+
+Succinctly describes the architecture of your system. Identify the modules 
+used, what abstractions they implement, what secrets they know, and how they 
+relate to one another. Avoid narrative descriptions of the behavior of 
+particular modules.
+
+um.c
+    The driver module that holds the main() function that runs when the 
+program is executed and interprets the command line before running the 
+actual computations of the program. This module does not know anything about 
+the program structure (segments, registers, program_counter, etc), it only 
+ensures that the command line input is valid or not.
+
+execute.h
+    The header file for the execute.c module. This header file runs the
+    program and passes in the "FILE *input" pointer to the input file 
+    in order to be able to close the file if the program were to fail 
+    or finish executing within the program.
+
+execute.c
+    This module stores the bulk of the program and focuses on keeping track 
+    of the 32-bit program counter to continuously access the word
+    instructions within the 0th memory segment of the memory manager module. 
+    This counter will know when the program execution has FAILED when the 
+    index of the counter has reached the size of Segment0. In other words, 
+    once there are no more 32-bit words left to be read, and a Halt 
+    instruction did not get executed to indicate the LEGAL way to end 
+    the program.
+
+    In order to visualize: The um.c command line parser will call 
+    the execute.c when it has received valid command line arguments 
+    to run the program validly. execute.c is the module that serves as the 
+    nesting module where the program counter/loop lives and the 
+    initialized memory and register manager live.
+    
+read_file.h
+    This header file for the read_file.c module that will be called by 
+    the execute.c module when the program "starts" (after um.c passes 
+    a valid command-line input). This file provides the public function 
+    that will take in the passed-input and a reference to the Memory 
+    module (assumed to be initialized).
+
+read_file.c
+    This module's main job is to read in the file that contains the 
+    machine instructions for our emulator to execute. It will ensure that 
+    all the machine instructions are sent into the 0th memory segment, 
+    without caring about what those instructions entail. This module 
+    does not know anything about registers either. It only knows how 
+    to parse through instructions and append the 0th segment into the 
+    format that our UM program can understand and execute.
+
+register_manager.h
+    This header file for the register_manager.c module allows the client 
+    (the rest of our program) to have public functions in order to 
+    incorporate an instance of 8 registers into the program. 
+    Contains public functions: 
+        initialize_registers 
+        get_register_value 
+        set_register_value 
+        free_registers
+     
+reigster_maanager.c
+    This module keeps secrets of how the registers are implemented to the 
+    client/rest of the program. This module allows the 
+    rest of the program to create an instance of the set of registers, as 
+    will be manipulated throughout the program depending on the instruction.
+    It allows the client to set and access values within those registers, 
+    (so long as those indices are not out of bounds) but does not show the 
+    client the data structure in which the registers are implemented 
+    under the hood. 
+
+
+memory_manager.h
+    This header file for the memory_manger.c module provides the public 
+    functions in order to manage memory in the UM emulator. Some of the 
+    public functions handle the heavy-work for some instructions such as 
+    load program, or mapping/unmapping.
+    Public functions include: 
+        initialize_memory
+        memorylength
+        segmentlength
+        add_to_seg0
+        get_word
+        set_word
+        map_segment 
+        unmap_segment
+        duplicate_segment
+        free_segment
+    
+memory_manager.c
+    Resembling the registers module. It accomplishes the same task, 
+    that is, keeping secrets from the client as to how the memory segments 
+    are implemented under the hood (data structures, etc.). This module 
+    will allow the client to map and unmap segments, access words in 
+    segments, but without messing with the underlying structure.
+    
+    The program uses an instance of a memory manager (defaulted to a single 
+    segment, segment0). This memory manager will have instructions 
+    appended to it when the file is being read, and may grow or shrink 
+    depending on instruction executions by the instruction_retrieval 
+    module.
+
+instruction_retrieval.h
+    This header file of the instruction_retrieval.c module provides 
+    the client/program the ability to create an instance of an 
+    Info (instruction) given a provided uint32_t, this struct that will 
+    already have the parsed information contained within that 
+    uint32_t word. There is also an instruction_executer that expects 
+    the pre-defined initialized Info struct pointer as well as 
+    references to the memory, registers, and program counter (in the event 
+    of a needed reset) and will perform the instruction indicated 
+    within the Info instruction. 
+    
+    The client need not know how to separate the uint32_t word, but 
+    just needs to provide the word to be interpreted, and then 
+    place that into the instruction executer in order to run.
+
+instruction_retrieval.c
+    This module is responsible for interpreting a single 4-byte word 
+    instruction. This will consist of interpreting the opcode 
+    from the rest of the word and storing that value into somewhere easily 
+    accessible such as a struct. If the op-code is 7, it will halt the 
+    computation (equivalent to successful execution of the UM) otherwise, 
+    it will continue to interpret instruction opcodes to properly 
+    execute the instruction necessary or FAIL if it is not valid.
+
+
+___________________________________________________________
+How long our UM takes to execute 50 million instructions:  |
+___________________________________________________________|
+
+Our program will take approximately 8.54s to execute 50 million instructions.
+We know this because we counted how many instructions midmark.um executes 
+which was about 85,070,521, way bigger than 50 million. Our UM program 
+took about 14.53 seconds to execute those 85 million instructions, we got 
+this number by running time ./um midmark.um as well as timing it with 
+our own stopwatch.
+
+With a little math/calculations, we get that based on how long it takes to 
+execute the 85 million-ish instructions, it will take our program about 
+8.539 seconds to execute 10 million instructions
+
+85, 070, 521 instructions / 10,000,000 instructions = 1.70141
+14.533s / 1.70141 = ~ 8.54s
+
+
+________________
+UM Unit Tests:  |
+________________|
+
+
+add.um
+    Verfies functionality of the add instruction. Adds 53 and 96 (register b 
+    and c and overwrites the value in register a with the sum (55 -> 149).
+
+add2.um
+    Verifies functionality of the add instruction. Adds bigger numbers to 
+    each other, adds itself to another number to get a bigger sum. Adds one 
+    of the default registers (r5 should still be 0), expect no change.
+
+arith.um 
+    Verifies the functionality of all the arithmatic instructions by with
+    a more complex check that combines everything
+
+c-move-comp.um
+    Verifies the functionality of conditional move with a more complex
+    instructions by doing conditional move for multiple times.
+
+c-move-sim.um 
+    Verifies the functionality of conditional move with a simpler
+    instructions by doing conditional move for once.
+
+div.um
+    Verifies functionality of the division instruction. Divides 104 by 52 to 
+    store 2 into rA. Ensures that a whole number quotient is possible as 
+    expected.
+
+div2.um
+    Verifies the functionality of the division instruction. Divides 53 by 2 
+    (an odd number and an even number and stores 26 into rA, ensures that the 
+    division with a result of a decimal quotient will round properly
+
+halt-verbose.um
+    Verifies the functionality of the halt instruction. Halts the program 
+    despite having several instructions after the halt instruction is called. 
+    Makes sure that those extra instructions don't run.
+
+halt.um
+    Verifies the basic functionality of the halt instruction. It is the only 
+    instruction appended and immediately halts the program without executing 
+    any other instruction.
+
+in.um 
+    Verifies the basic functionality of the intput instruction by prompting
+    input for once and then output the read in information.
+
+in2.um 
+    Test the input instruction with more sets of input an output to verify
+    reading input information and storing that information is done correctly.
+
+large-ASCII.um
+    Verifies the basic functionality of the output instruction. Printable big
+    ASCII codes are loaded onto registers and checked whether they print out
+    to the values as expected.
+
+load-program.um
+    Verifies the functionality of the load program instruction. We load
+    0 onto r7 to represent segment 0 which holds instructions we want to 
+    keep. r0 holds the index of the word where the halt instruction lives in 
+    segment0. We map a segment with 111 words, store the halt instruction
+    into r4, add that instruction to r2 to hold as its first instruction. 
+    then we LOAD PROGRAM, to duplicate the 1st segment that only holds 
+    a halt instruction at index 0, and makes the program_counter point to 
+    this instruction. This instruction is outputted and the program is halted.
+
+load-val.um
+    Verifies the functionality of the load value instruction. Though this 
+    instruction has already been used before to test other instructions, this 
+    test loads values in ALL registers and attempts to output them. This test 
+    does this twice and halts the program. We make sure each registers is 
+    changing as expected.
+
+map.um
+    Verifies functionality of the mapping function. This test loads values 
+    onto registers r1, r2, and r3, then maps a segment with 114 words (r3) and
+    stores the index of the newly mapped segment into r4. the index of the
+    newly mapped segment (r4) is then output and verified if it is what we 
+    expected -- appended to the 0th segment. 
+
+map2.um
+    Verifies the functionality of the mapping function with more calls to 
+    map_segment instruction. For each segment that gets mapped, the new index
+    is then outputted, ensuring that the numbers printed are sequential and 
+    incrementing.
+
+mult.um
+    Verifies the functionality of the multiplication instruction.
+    Multiplies 53 * 2 and overwrites the value 3 in register 1 to be
+    the product of the operation: 106. Then each register is printed 
+    to standard out. 
+
+mult2.um 
+    Verifies the functionality of the multiplication instruction. 
+    Attempts to mimic the pow function of the math library, multiplies
+    the register value by 2 some number of times until it reaches 
+    2048. In order to verify if this worked, it is then divided by 
+    32 in order to get the printable character value: 64. 
+
+nand1.um
+    Verifies the functionality of the NAND instruction. First we try to 
+    recreate the large value close to 2^32 in order to be able to perform 
+    a logical and on itself that way when we negate it, we can get 
+    the value of a ASCII code that is near printable. We get
+    11111111111111111111111101010000 which negates to 
+    00000000000000000000000010101111 which equals 175. 175 then 
+    prints out as a printable ASCII character.
+
+nand2.um
+    Another test for verifying the NAND instruction. Works similarly to 
+    the last nand1 test and just prints a different ASCII character close 
+    to 175.
+
+out.um
+   Verifies the functionality of the output instruction, this test loads 
+   values onto all the registers (printable ASCII characters 110-117) and 
+   attempts to output each of them to standard out.
+
+print-six.um
+    Verifies if a desired number value can be printed to standard out, six. 
+    Tests the loadval, addition, and out instructions. We load 6 onto 
+    a register, add 48 in order to print the ASCII value that represents 
+    '6', then print that value to standard out to see if it is six.
+
+segment-load.um
+    Verifies the functionality of segment load instruction. We load values 
+    onto registers r1, r2, and r3, then map segments with the value 
+    in r3 size  (116 words). We then output r1, r2, and r3 to ensure that 
+    these values are what we want (they are printable ascii). We try 
+    to load the segment in segment[1]word[1], (should be 0 default) and 
+    then attempt to output it.
+
+segment-store.um
+    Verifies functionality of segment store instruction. We load values 
+    onto r1, r2, and r3, printable ascii 111, 112, and 113. We then 
+    map segments similar to the last step, based on r3 values (size of 
+    113 words). We test the segment store by trying to store the value of 
+    register r3 (113) onto the index of [3][3] of segments. 
+    We then rely on segment-load functionality to do the reverse of what 
+    we did, and access that value and store it onto r1. 
+    We then output r1 to ensure it is a new value (r3's value).
+
+segment-store2.um 
+    verifies functionality of segment store instruction again. We follow 
+    the similar tests as before, except we try to do this twice 
+    on the same segment but one word apart. we then try to, again, do the 
+    reverse seg-load instruction to load the changed words onto 
+    different registers to be outputted. Then we verify if these 
+    outputted values are the values we stored onto the segment. 
+
+unmap.um
+    Another test for verifying the unmap instruction. We load 3 values 
+    onto the registers, map 2 segments to have 115 words and 
+    113 words, store those values onto r4 and r5, then unmap r3.
+
+*******************************************************************
+Tests that are not submitted because they will fail the reference
+implementation:
+*******************************************************************
+d_zero.um
+    Verifies run-time error will occur when trying to divide a
+    number by zero.
+
+segment-load-out
+    Verifies run-time error will occur when trying to load a segment
+    that is not mapped yet
+
+segment-store_out
+    Verifies run-time error will occur when trying to segment store a 
+    segment that is not mapped yet
+
+
+_____________
+Time Spent:  |
+_____________|
+
+Time spent analyzing: ~5 hrs
+
+Time spent designing: ~14 hrs
+
+Time spent solving: ~35 hrs
+
+        
